@@ -240,7 +240,6 @@ export function simulateYear(config: SystemConfig): AnnualResult {
   };
 
   const arrayKw = arrayNameplateKw(cfg.panel, cfg.panelCount);
-  const served = Math.max(totals.kwhLoad - totals.kwhUnmet - totals.kwhImport, 0);
   const fromPvToLoad = Math.max(totals.kwhAc - totals.kwhExport, 0);
   const performanceRatio =
     totals.poaKwhM2 > 0 && arrayKw > 0
