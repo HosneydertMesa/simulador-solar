@@ -112,6 +112,12 @@ export function runSimulation(state: SimulatorState): RunResult {
   if (state.topology !== "ongrid" && inverter.kind === "string") {
     warnings.push("Un inversor string no gestiona baterías. Cambia a híbrido u off-grid.");
   }
+  if (state.topology === "hybrid" && inverter.kind !== "hybrid") {
+    warnings.push("Para un sistema híbrido elige un inversor híbrido (Deye, Huawei o Victron).");
+  }
+  if (state.topology === "offgrid" && inverter.kind === "string") {
+    warnings.push("Off-grid requiere inversor híbrido u off-grid, no un string on-grid.");
+  }
 
   const optimizeInput = {
     location,
