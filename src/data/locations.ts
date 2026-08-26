@@ -1,0 +1,88 @@
+import type { Location } from "@/engine/types";
+
+export const LOCATIONS: Location[] = [
+  {
+    id: "bogota",
+    name: "Bogotá",
+    region: "Cundinamarca",
+    lat: 4.711,
+    lon: -74.072,
+    altitudeM: 2640,
+    ghiKwhM2Day: [4.2, 4.4, 4.6, 4.3, 4.0, 3.8, 4.0, 4.2, 4.3, 4.2, 4.1, 4.0],
+    tempC: [13, 13, 14, 14, 14, 14, 13, 13, 13, 13, 13, 13],
+  },
+  {
+    id: "medellin",
+    name: "Medellín",
+    region: "Antioquia",
+    lat: 6.244,
+    lon: -75.581,
+    altitudeM: 1495,
+    ghiKwhM2Day: [4.8, 5.0, 5.2, 5.0, 4.8, 4.7, 5.0, 5.2, 5.1, 4.9, 4.8, 4.7],
+    tempC: [22, 22, 22, 22, 22, 22, 22, 22, 22, 21, 21, 21],
+  },
+  {
+    id: "cali",
+    name: "Cali",
+    region: "Valle del Cauca",
+    lat: 3.452,
+    lon: -76.532,
+    altitudeM: 1018,
+    ghiKwhM2Day: [4.5, 4.7, 5.0, 4.8, 4.5, 4.3, 4.6, 4.8, 4.7, 4.6, 4.5, 4.4],
+    tempC: [24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24],
+  },
+  {
+    id: "barranquilla",
+    name: "Barranquilla",
+    region: "Atlántico",
+    lat: 10.968,
+    lon: -74.781,
+    altitudeM: 18,
+    ghiKwhM2Day: [5.2, 5.6, 6.2, 6.0, 5.5, 5.2, 5.4, 5.6, 5.4, 5.2, 5.0, 5.0],
+    tempC: [27, 27, 27, 28, 28, 28, 28, 28, 28, 28, 27, 27],
+  },
+  {
+    id: "cartagena",
+    name: "Cartagena",
+    region: "Bolívar",
+    lat: 10.391,
+    lon: -75.514,
+    altitudeM: 2,
+    ghiKwhM2Day: [5.3, 5.7, 6.3, 6.1, 5.6, 5.3, 5.5, 5.7, 5.5, 5.3, 5.1, 5.1],
+    tempC: [27, 27, 27, 28, 28, 28, 28, 28, 28, 28, 27, 27],
+  },
+  {
+    id: "bucaramanga",
+    name: "Bucaramanga",
+    region: "Santander",
+    lat: 7.119,
+    lon: -73.122,
+    altitudeM: 959,
+    ghiKwhM2Day: [4.9, 5.1, 5.2, 4.9, 4.6, 4.5, 4.8, 5.0, 4.9, 4.8, 4.7, 4.7],
+    tempC: [23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23],
+  },
+  {
+    id: "villavicencio",
+    name: "Villavicencio",
+    region: "Meta",
+    lat: 4.142,
+    lon: -73.627,
+    altitudeM: 467,
+    ghiKwhM2Day: [5.0, 5.2, 5.0, 4.6, 4.3, 4.2, 4.4, 4.7, 4.9, 5.0, 5.0, 4.9],
+    tempC: [26, 26, 26, 26, 25, 24, 24, 25, 26, 26, 26, 26],
+  },
+  {
+    id: "pasto",
+    name: "Pasto",
+    region: "Nariño",
+    lat: 1.213,
+    lon: -77.281,
+    altitudeM: 2527,
+    ghiKwhM2Day: [4.4, 4.5, 4.6, 4.4, 4.1, 4.0, 4.2, 4.4, 4.5, 4.4, 4.3, 4.3],
+    tempC: [13, 13, 13, 13, 13, 12, 12, 12, 13, 13, 13, 13],
+  },
+];
+
+export function locationById(id: string): Location {
+  return LOCATIONS.find((l) => l.id === id) ?? LOCATIONS[0];
+}

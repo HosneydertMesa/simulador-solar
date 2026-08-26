@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+:root {
+  --background: #070b10;
+  --foreground: #e8eef4;
+  --amber: #f5a524;
+  --cyan: #3ee0c2;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.field {
+  width: 100%;
+  margin-top: 0.2rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  background: rgb(0 0 0 / 0.35);
+  padding: 0.4rem 0.55rem;
+  font-size: 0.8rem;
+  color: var(--foreground);
+  outline: none;
+}
+
+.field:focus {
+  border-color: rgb(245 165 36 / 0.7);
+}
+
+.tab {
+  border-radius: 0.5rem;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  background: rgb(255 255 255 / 0.03);
+  padding: 0.35rem 0.4rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  color: rgb(255 255 255 / 0.65);
+}
+
+.tab-on {
+  border-color: rgb(245 165 36 / 0.45);
+  background: rgb(245 165 36 / 0.12);
+  color: #ffe7b8;
+}
+
+.hint {
+  font-size: 0.65rem;
+  line-height: 1.35;
+  color: rgb(255 255 255 / 0.4);
+}
+
+input[type="range"] {
+  accent-color: #f5a524;
+  width: 9rem;
+}
+
+select option {
+  background: #0c121a;
+}
