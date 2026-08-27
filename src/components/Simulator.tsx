@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import {
   Battery,
   Box,
@@ -9,18 +9,21 @@ import {
   Zap,
 } from "lucide-react";
 import { SceneCanvas } from "@/components/scene/SceneCanvas";
-import { BATTERIES, INVERTERS, PANELS, SUPPLIERS } from "@/data/catalog";
+import { SUPPLIERS, batteriesFor, invertersFor, panelsFor } from "@/data/catalog";
 import { LOCATIONS } from "@/data/locations";
 import {
   formatCop,
+  formatCopPerKwh,
   formatKwh,
   formatKw,
   formatPct,
   formatUsd,
+  formatUsdPerKwh,
   formatYears,
 } from "@/engine/format";
-import { runSimulation } from "@/lib/run";
+import { priceFor, runSimulation } from "@/lib/run";
 import { useSimulator } from "@/store/simulation";
+import type { SimulatorState } from "@/store/simulation";
 import type { Topology } from "@/engine/types";
 
 const MONTHS = [
@@ -28,10 +31,59 @@ const MONTHS = [
   "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
 ];
 
+const TOPOLOGIES: { id: Topology; label: string }[] = [
+  { id: "ongrid", label: "On-grid" },
+  { id: "hybrid", label: "Híbrido" },
+  { id: "offgrid", label: "Off-grid" },
+  { id: "portable", label: "Portátil" },
+];
+
+function applyTopology(t: Topology, state: SimulatorState) {
+  if (t === "portable") {
+    state.set({
+      topology: t,
+      panelId: "ecoflow-220-fold",
+      panelCount: 2,
+      inverterId: "ecoflow-delta2",
+      batteryId: "ecoflow-delta2-pack",
+      batteryCount: 1,
+      supplierId: "ruta-solar",
+      dailyLoadKwh: 2.5,
+      autonomyDays: 1,
+      tiltDeg: 25,
+      soiling: 0.06,
+      projectYears: 10,
+    });
+    return;
+  }
+  if (state.topology === "portable") {
+    state.set({
+      topology: t,
+      panelId: "jinko-tiger-neo-580",
+      panelCount: 10,
+      inverterId: t === "ongrid" ? "growatt-min-6000" : "deye-sun-8k",
+      batteryId: "pylontech-us3000c",
+      batteryCount: 4,
+      supplierId: "andes-solar",
+      dailyLoadKwh: 12,
+      tiltDeg: 10,
+      soiling: 0.03,
+      projectYears: 25,
+    });
+    return;
+  }
+  state.set({ topology: t });
+}
+
 export function Simulator() {
   const state = useSimulator();
   const run = useMemo(() => runSimulation(state), [state]);
   const [tab, setTab] = useState<"resultados" | "perdidas" | "comparar">("resultados");
+  const portable = state.topology === "portable";
+  const panels = panelsFor(state.topology);
+  const inverters = invertersFor(state.topology);
+  const batteries = batteriesFor(state.topology);
+  const fx = state.usdCop;
 
   return (
     <div className="flex min-h-screen flex-col bg-[#070b10] text-[#e8eef4]">
@@ -50,7 +102,7 @@ export function Simulator() {
         <div className="flex flex-wrap gap-2 text-xs">
           <Stat chip label="Campo" value={formatKw(run.arrayKw)} />
           <Stat chip label="PR" value={formatPct(run.annual.performanceRatio)} />
-          <Stat chip label="LCOE" value={`${run.economics.lcoeUsdPerKwh.toFixed(3)} USD/kWh`} />
+          <Stat chip label="LCOE" value={formatCopPerKwh(run.economics.lcoeCopPerKwh)} />
           <Stat chip label="CAPEX" value={formatCop(run.economics.capexCop)} />
         </div>
       </header>
@@ -107,18 +159,23 @@ export function Simulator() {
               onChange={(autonomyDays) => state.set({ autonomyDays })}
             />
             <Label>Topología</Label>
-            <div className="grid grid-cols-3 gap-1">
-              {(["ongrid", "hybrid", "offgrid"] as Topology[]).map((t) => (
+            <div className="grid grid-cols-2 gap-1 sm:grid-cols-4">
+              {TOPOLOGIES.map((t) => (
                 <button
-                  key={t}
-                  className={`tab ${state.topology === t ? "tab-on" : ""}`}
-                  onClick={() => state.set({ topology: t })}
+                  key={t.id}
+                  className={`tab ${state.topology === t.id ? "tab-on" : ""}`}
+                  onClick={() => applyTopology(t.id, state)}
                   type="button"
                 >
-                  {t === "ongrid" ? "On-grid" : t === "hybrid" ? "Híbrido" : "Off-grid"}
+                  {t.label}
                 </button>
               ))}
             </div>
+            {portable && (
+              <p className="hint">
+                Camping, finca o emergencia: paneles plegables + estación de batería. Sin obra de techo.
+              </p>
+            )}
           </Section>
 
           <Section title="Equipos" icon={<Box size={14} />}>
@@ -134,56 +191,56 @@ export function Simulator() {
                 </option>
               ))}
             </select>
-            <Label>Panel</Label>
+            <Label>{portable ? "Panel plegable" : "Panel"}</Label>
             <select
               className="field"
               value={state.panelId}
               onChange={(e) => state.set({ panelId: e.target.value })}
             >
-              {PANELS.map((p) => (
+              {panels.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.brand} {p.pmaxW} W
+                  {p.brand} {p.pmaxW} W · {formatCop(priceFor(p.id, state.supplierId).price.unitUsd * fx)}
                 </option>
               ))}
             </select>
             <NumberField
-              label="Cantidad de módulos"
+              label={portable ? "Cantidad de maletas" : "Cantidad de módulos"}
               value={state.panelCount}
-              min={2}
-              max={40}
+              min={portable ? 1 : 2}
+              max={portable ? 8 : 40}
               onChange={(panelCount) => state.set({ panelCount })}
             />
-            <Label>Inversor</Label>
+            <Label>{portable ? "Estación portátil" : "Inversor"}</Label>
             <select
               className="field"
               value={state.inverterId}
               onChange={(e) => state.set({ inverterId: e.target.value })}
             >
-              {INVERTERS.map((i) => (
+              {inverters.map((i) => (
                 <option key={i.id} value={i.id}>
-                  {i.brand} {i.model} ({i.pAcKw} kW {i.kind})
+                  {i.brand} {i.model} · {formatCop(priceFor(i.id, state.supplierId).price.unitUsd * fx)}
                 </option>
               ))}
             </select>
             {state.topology !== "ongrid" && (
               <>
-                <Label>Batería</Label>
+                <Label>{portable ? "Pack / expansión" : "Batería"}</Label>
                 <select
                   className="field"
                   value={state.batteryId}
                   onChange={(e) => state.set({ batteryId: e.target.value })}
                 >
-                  {BATTERIES.map((b) => (
+                  {batteries.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.brand} {b.nominalKwh} kWh
+                      {b.brand} {b.nominalKwh} kWh · {formatCop(priceFor(b.id, state.supplierId).price.unitUsd * fx)}
                     </option>
                   ))}
                 </select>
                 <NumberField
-                  label="Módulos de batería"
+                  label={portable ? "Unidades (1 = pack interno)" : "Módulos de batería"}
                   value={state.batteryCount}
                   min={1}
-                  max={12}
+                  max={portable ? 4 : 12}
                   onChange={(batteryCount) => state.set({ batteryCount })}
                 />
               </>
@@ -199,13 +256,23 @@ export function Simulator() {
               step={10}
               onChange={(tariffCopPerKwh) => state.set({ tariffCopPerKwh })}
             />
+            {!portable && (
+              <NumberField
+                label="Excedentes COP/kWh"
+                value={state.exportCopPerKwh}
+                min={0}
+                max={1000}
+                step={10}
+                onChange={(exportCopPerKwh) => state.set({ exportCopPerKwh })}
+              />
+            )}
             <NumberField
-              label="Excedentes COP/kWh"
-              value={state.exportCopPerKwh}
-              min={0}
-              max={1000}
-              step={10}
-              onChange={(exportCopPerKwh) => state.set({ exportCopPerKwh })}
+              label="TRM USD → COP"
+              value={state.usdCop}
+              min={2500}
+              max={8000}
+              step={50}
+              onChange={(usdCop) => state.set({ usdCop })}
             />
             <NumberField
               label="Suciedad %"
@@ -269,8 +336,8 @@ export function Simulator() {
             <div className="space-y-3">
               <Metric label="Producción AC anual" value={formatKwh(run.annual.kwhAc)} />
               <Metric label="Consumo anual" value={formatKwh(run.annual.kwhLoad)} />
-              <Metric label="Importación red" value={formatKwh(run.annual.kwhImport)} />
-              <Metric label="Excedentes" value={formatKwh(run.annual.kwhExport)} />
+              {!portable && <Metric label="Importación red" value={formatKwh(run.annual.kwhImport)} />}
+              {!portable && <Metric label="Excedentes" value={formatKwh(run.annual.kwhExport)} />}
               <Metric label="No cubierto" value={formatKwh(run.annual.kwhUnmet)} />
               <Metric label="Autoconsumo" value={formatPct(run.annual.selfConsumption)} />
               <Metric label="Autosuficiencia" value={formatPct(run.annual.selfSufficiency)} />
@@ -278,10 +345,35 @@ export function Simulator() {
               <Metric label="Pérdida inversor" value={formatKwh(run.annual.kwhInverterLoss)} />
               <Metric label="Recorte (clipping)" value={formatKwh(run.annual.kwhClipping)} />
               <hr className="border-white/10" />
+              <Metric
+                label="LCOE"
+                value={formatCopPerKwh(run.economics.lcoeCopPerKwh)}
+                hint={formatUsdPerKwh(run.economics.lcoeUsdPerKwh)}
+              />
               <Metric label="Inversión" value={formatCop(run.economics.capexCop)} hint={formatUsd(run.economics.capexUsd)} />
-              <Metric label="Ahorro anual" value={formatCop(run.economics.annualSavingsCop)} />
+              <Metric label="Paneles" value={formatCop(run.economics.breakdownCop.panels)} />
+              <Metric label={portable ? "Estación" : "Inversor"} value={formatCop(run.economics.breakdownCop.inverter)} />
+              {run.economics.breakdownCop.batteries > 0 && (
+                <Metric label="Baterías extra" value={formatCop(run.economics.breakdownCop.batteries)} />
+              )}
+              <Metric
+                label={portable ? "Envío + cables" : "Obra + BOS + envío"}
+                value={formatCop(
+                  run.economics.breakdownCop.labor +
+                    run.economics.breakdownCop.mounting +
+                    run.economics.breakdownCop.bos +
+                    run.economics.breakdownCop.shipping,
+                )}
+              />
+              <Metric
+                label={portable ? "Ahorro vs planta / año" : "Ahorro anual"}
+                value={formatCop(run.economics.annualSavingsCop)}
+              />
               <Metric label="Payback" value={formatYears(run.economics.simplePaybackYears)} />
-              <Metric label="VPN 25 años" value={formatCop(run.economics.npvCop)} />
+              <Metric
+                label={`VPN ${state.projectYears} años`}
+                value={formatCop(run.economics.npvCop)}
+              />
               <HourlyChart
                 hours={run.annual.hours.filter((h) => h.month === state.monthPreview)}
               />
@@ -307,6 +399,7 @@ export function Simulator() {
               quotes={run.quotes}
               onApply={(q) =>
                 state.set({
+                  topology: q.topology,
                   supplierId: q.supplierId,
                   panelId: q.panel.id,
                   panelCount: q.panelCount,
@@ -417,6 +510,8 @@ function HourPeek({
   );
 }
 
+const emptySubscribe = () => () => {};
+
 function HourlyChart({
   hours,
 }: {
@@ -424,10 +519,7 @@ function HourlyChart({
 }) {
   const w = 320;
   const h = 90;
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    setReady(true);
-  }, []);
+  const ready = useSyncExternalStore(emptySubscribe, () => true, () => false);
   const max = Math.max(0.2, ...hours.flatMap((x) => [x.pvDc, x.inverterAc, x.load]));
   const path = (key: "pvDc" | "inverterAc" | "load") =>
     hours
@@ -527,7 +619,7 @@ function CompareList({
             {q.battery ? ` · ${q.batteryCount}× ${q.battery.brand}` : ""}
           </p>
           <p className="mt-1 font-mono text-[11px] text-cyan-100/80">
-            LCOE {q.economics.lcoeUsdPerKwh.toFixed(3)} · payback {formatYears(q.economics.simplePaybackYears)} · {formatKwh(q.annual.kwhAc)}
+            LCOE {formatCopPerKwh(q.economics.lcoeCopPerKwh)} · payback {formatYears(q.economics.simplePaybackYears)} · {formatKwh(q.annual.kwhAc)}
           </p>
         </button>
       ))}

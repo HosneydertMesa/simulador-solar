@@ -16,6 +16,7 @@ import { arrayNameplateKw, suggestStringing } from "@/engine/pv";
 import { dcacRatio } from "@/engine/inverter";
 import { DEFAULT_LOAD, simulateYear } from "@/engine/simulate";
 import type { AnnualResult, EconomicsResult, Quote, SystemConfig } from "@/engine/types";
+import { formFactorOf } from "@/engine/types";
 import type { SimulatorState } from "@/store/simulation";
 
 export function priceFor(productId: string, supplierId: string) {
@@ -45,7 +46,11 @@ export function runSimulation(state: SimulatorState): RunResult {
   const inverter = inverterById(state.inverterId);
   const battery = state.topology === "ongrid" ? null : batteryById(state.batteryId);
   const batteryCount = state.topology === "ongrid" ? 0 : state.batteryCount;
-  const derate = { ...DEFAULT_DERATE, soiling: state.soiling };
+  const portable = state.topology === "portable";
+  const derate = {
+    ...DEFAULT_DERATE,
+    soiling: portable ? Math.max(state.soiling, 0.05) : state.soiling,
+  };
   const supplier = supplierById(state.supplierId);
 
   const config: SystemConfig = {
@@ -91,18 +96,18 @@ export function runSimulation(state: SimulatorState): RunResult {
       panelQuote.price.shippingUsd * state.panelCount +
       invQuote.price.shippingUsd +
       (batQuote?.price.shippingUsd ?? 0) * batteryCount,
-    laborPerWpUsd: supplier.laborPerWpUsd,
-    mountingPerWpUsd: supplier.mountingPerWpUsd,
-    bosPerWpUsd: supplier.bosPerWpUsd,
+    laborPerWpUsd: portable ? 0 : supplier.laborPerWpUsd,
+    mountingPerWpUsd: portable ? 0 : supplier.mountingPerWpUsd,
+    bosPerWpUsd: portable ? Math.min(supplier.bosPerWpUsd, 0.03) : supplier.bosPerWpUsd,
     arrayKw,
     tariffCopPerKwh: state.tariffCopPerKwh,
-    exportCopPerKwh: state.exportCopPerKwh,
+    exportCopPerKwh: portable ? 0 : state.exportCopPerKwh,
     usdCop: state.usdCop,
     projectYears: state.projectYears,
     discountRate: state.discountRate,
-    opexPctCapex: 0.012,
-    inverterReplaceYear: 12,
-    inverterReplaceUsd: invQuote.price.unitUsd * 0.7,
+    opexPctCapex: portable ? 0.02 : 0.012,
+    inverterReplaceYear: portable ? 8 : 12,
+    inverterReplaceUsd: invQuote.price.unitUsd * (portable ? 0.5 : 0.7),
   });
 
   const stringing = suggestStringing(panel, inverter, state.panelCount, derate.tMinC, derate.tMaxC);
@@ -117,6 +122,15 @@ export function runSimulation(state: SimulatorState): RunResult {
   }
   if (state.topology === "offgrid" && inverter.kind === "string") {
     warnings.push("Off-grid requiere inversor híbrido u off-grid, no un string on-grid.");
+  }
+  if (portable && inverter.kind !== "portable") {
+    warnings.push("Modo portátil: elige una estación (EcoFlow, Jackery, Bluetti o Anker) y paneles plegables.");
+  }
+  if (portable && formFactorOf(panel) !== "portable") {
+    warnings.push("Los módulos de techo no van con una estación portátil. Usa paneles plegables/maleta.");
+  }
+  if (!portable && formFactorOf(panel) === "portable") {
+    warnings.push("Un panel plegable es para camping/campo. Para techo elige un módulo residencial.");
   }
 
   const optimizeInput = {

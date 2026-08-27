@@ -14,6 +14,7 @@ import type {
   LossBreakdown,
   SystemConfig,
 } from "./types";
+import { isIslanded } from "./types";
 
 const DEFAULT_LOAD = [
   0.018, 0.018, 0.018, 0.018, 0.018, 0.018, 0.045, 0.055, 0.05, 0.035, 0.035,
@@ -80,8 +81,8 @@ function simulateHour(
     config.battery !== null &&
     config.batteryCount > 0 &&
     config.topology !== "ongrid";
-  const canExport = config.topology !== "offgrid";
-  const canImport = config.topology !== "offgrid";
+  const canExport = !isIslanded(config.topology);
+  const canImport = !isIslanded(config.topology);
 
   let sample = emptyHour(month, hour);
   sample = {

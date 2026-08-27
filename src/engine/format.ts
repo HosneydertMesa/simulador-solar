@@ -20,6 +20,16 @@ export function formatUsd(value: number): string {
   return usdFmt.format(value);
 }
 
+export function formatCopPerKwh(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  return `${copFmt.format(Math.round(value))}/kWh`;
+}
+
+export function formatUsdPerKwh(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  return `${value.toFixed(3)} USD/kWh`;
+}
+
 export function formatKwh(value: number): string {
   if (!Number.isFinite(value)) return "—";
   if (Math.abs(value) >= 1000) return `${(value / 1000).toFixed(2)} MWh`;

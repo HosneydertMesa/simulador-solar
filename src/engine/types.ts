@@ -1,6 +1,15 @@
-export type Topology = "ongrid" | "hybrid" | "offgrid";
-export type InverterKind = "string" | "hybrid" | "offgrid";
+export type Topology = "ongrid" | "hybrid" | "offgrid" | "portable";
+export type InverterKind = "string" | "hybrid" | "offgrid" | "portable";
+export type FormFactor = "rooftop" | "portable";
 export type Chemistry = "lfp" | "nmc" | "lead_acid";
+
+export function isIslanded(topology: Topology): boolean {
+  return topology === "offgrid" || topology === "portable";
+}
+
+export function formFactorOf(item: { formFactor?: FormFactor }): FormFactor {
+  return item.formFactor ?? "rooftop";
+}
 
 export type EfficiencyPoint = {
   /** AC load as a fraction of rated AC power (0–1.2). */
@@ -28,6 +37,8 @@ export type PanelSpec = {
   heightM: number;
   bifacialGain: number;
   warrantyYears: number;
+  /** Default rooftop. Portable = maleta / plegable. */
+  formFactor?: FormFactor;
 };
 
 export type InverterSpec = {
@@ -46,6 +57,7 @@ export type InverterSpec = {
   nightConsumptionKw: number;
   standbyKw: number;
   batteryVoltageV: number | null;
+  formFactor?: FormFactor;
 };
 
 export type BatterySpec = {
@@ -61,6 +73,7 @@ export type BatterySpec = {
   cDischarge: number;
   cyclesTo80: number;
   calendarFadePctPerYear: number;
+  formFactor?: FormFactor;
 };
 
 export type SupplierPrice = {
@@ -202,6 +215,16 @@ export type EconomicsInput = {
   inverterReplaceUsd: number;
 };
 
+export type CapexBreakdownCop = {
+  panels: number;
+  inverter: number;
+  batteries: number;
+  shipping: number;
+  labor: number;
+  mounting: number;
+  bos: number;
+};
+
 export type EconomicsResult = {
   capexUsd: number;
   capexCop: number;
@@ -209,8 +232,10 @@ export type EconomicsResult = {
   annualExportCop: number;
   simplePaybackYears: number;
   lcoeUsdPerKwh: number;
+  lcoeCopPerKwh: number;
   npvCop: number;
   irrApprox: number;
+  breakdownCop: CapexBreakdownCop;
 };
 
 export type Quote = {

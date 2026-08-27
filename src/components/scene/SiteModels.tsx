@@ -23,6 +23,27 @@ export function SiteModels({ sunPosition, sunVisible }: Props) {
   const panel = panelById(useSimulator((s) => s.panelId));
   const hour = useSimulator((s) => s.hourPreview);
 
+  if (topology === "portable") {
+    return (
+      <group>
+        <PortableKit
+          tilt={tilt}
+          count={count}
+          widthM={panel.widthM}
+          heightM={panel.heightM}
+          batteryCount={batteryCount}
+          glow={sunVisible}
+          selected={selected}
+          onSelect={(obj) => set({ selectedObject: obj })}
+        />
+        <EnergyCables topology={topology} pulse={hour} />
+        <SunMarker position={sunPosition} visible={sunVisible} />
+        <Tree position={[-8.5, 0, 5.5]} />
+        <Tree position={[9.2, 0, -4.2]} scale={1.15} />
+      </group>
+    );
+  }
+
   return (
     <group>
       <House
@@ -55,6 +76,99 @@ export function SiteModels({ sunPosition, sunVisible }: Props) {
       <SunMarker position={sunPosition} visible={sunVisible} />
       <Tree position={[-8.5, 0, 5.5]} />
       <Tree position={[9.2, 0, -4.2]} scale={1.15} />
+    </group>
+  );
+}
+
+function PortableKit({
+  tilt,
+  count,
+  widthM,
+  heightM,
+  batteryCount,
+  glow,
+  selected,
+  onSelect,
+}: {
+  tilt: number;
+  count: number;
+  widthM: number;
+  heightM: number;
+  batteryCount: number;
+  glow: boolean;
+  selected: "panels" | "inverter" | "battery" | "house" | null;
+  onSelect: (obj: "panels" | "inverter" | "battery") => void;
+}) {
+  const pitch = (Math.min(Math.max(tilt, 10), 50) * Math.PI) / 180;
+  const visual = Math.min(count, 6);
+  const stationN = Math.min(Math.max(batteryCount, 1), 3);
+
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]} receiveShadow>
+        <circleGeometry args={[7.5, 28]} />
+        <meshStandardMaterial color="#3d4a32" roughness={1} />
+      </mesh>
+      <mesh position={[-3.2, 0.95, 2.1]} rotation={[0, 0.4, 0]} castShadow>
+        <coneGeometry args={[1.35, 1.9, 3]} />
+        <meshStandardMaterial color="#6b4a28" roughness={0.85} />
+      </mesh>
+      {Array.from({ length: visual }).map((_, i) => {
+        const x = (i - (visual - 1) / 2) * Math.min(widthM + 0.25, 1.4);
+        return (
+          <group
+            key={i}
+            position={[x, Math.sin(pitch) * heightM * 0.28, -1.4]}
+            rotation={[pitch, 0, 0]}
+            onClick={(e) => { e.stopPropagation(); onSelect("panels"); }}
+          >
+            <mesh castShadow>
+              <boxGeometry args={[Math.min(widthM, 1.1), 0.04, Math.min(heightM, 1.6)]} />
+              <meshStandardMaterial
+                color={selected === "panels" ? "#12385c" : "#08192c"}
+                metalness={0.7}
+                roughness={0.22}
+                emissive={glow ? "#0b3a6a" : "#01060c"}
+                emissiveIntensity={glow ? 0.4 : 0.08}
+              />
+            </mesh>
+            <mesh position={[0, -0.02, Math.min(heightM, 1.6) / 2 + 0.04]}>
+              <boxGeometry args={[0.08, 0.08, 0.08]} />
+              <meshStandardMaterial color="#c45c12" />
+            </mesh>
+          </group>
+        );
+      })}
+      {Array.from({ length: stationN }).map((_, i) => (
+        <group
+          key={`st-${i}`}
+          position={[1.6 + i * 0.85, 0.28, 1.4]}
+          onClick={(e) => { e.stopPropagation(); onSelect(i === 0 ? "inverter" : "battery"); }}
+        >
+          <mesh castShadow>
+            <boxGeometry args={[0.72, 0.5, 0.48]} />
+            <meshStandardMaterial
+              color={selected === "inverter" || selected === "battery" ? "#1c3a4a" : "#151b22"}
+              metalness={0.45}
+              roughness={0.4}
+            />
+          </mesh>
+          <mesh position={[0.22, 0.12, 0.25]}>
+            <boxGeometry args={[0.16, 0.08, 0.02]} />
+            <meshStandardMaterial color="#3ee0c2" emissive="#3ee0c2" emissiveIntensity={0.6} />
+          </mesh>
+        </group>
+      ))}
+      <Html position={[1.6, 0.95, 1.4]} center>
+        <div className="rounded bg-black/70 px-1.5 py-0.5 text-[9px] tracking-wide text-cyan-100">
+          ESTACIÓN
+        </div>
+      </Html>
+      <Html position={[0, 1.2, -1.4]} center>
+        <div className="rounded bg-black/70 px-1.5 py-0.5 text-[9px] tracking-wide text-amber-100">
+          PLEGABLES ×{count}
+        </div>
+      </Html>
     </group>
   );
 }
@@ -306,19 +420,29 @@ function SunMarker({
   );
 }
 
+function energyCableCurve(topology: string): THREE.CatmullRomCurve3 {
+  if (topology === "portable") {
+    return new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 1.1, -1.4),
+      new THREE.Vector3(0.8, 0.7, 0.2),
+      new THREE.Vector3(1.6, 0.45, 1.4),
+    ]);
+  }
+  const pts = [
+    new THREE.Vector3(0, 4.2, -2.2),
+    new THREE.Vector3(2.4, 3.4, 0.4),
+    new THREE.Vector3(4.3, 1.5, 2.2),
+  ];
+  if (topology !== "ongrid") pts.push(new THREE.Vector3(5.4, 1.1, 0.6));
+  return new THREE.CatmullRomCurve3(pts);
+}
+
 function EnergyCables({ topology, pulse }: { topology: string; pulse: number }) {
   const ref = useRef<Mesh>(null);
-  const path = useMemo(() => {
-    const pts = [
-      new THREE.Vector3(0, 4.2, -2.2),
-      new THREE.Vector3(2.4, 3.4, 0.4),
-      new THREE.Vector3(4.3, 1.5, 2.2),
-    ];
-    if (topology !== "ongrid") pts.push(new THREE.Vector3(5.4, 1.1, 0.6));
-    return new THREE.CatmullRomCurve3(pts);
+  const { path, geometry } = useMemo(() => {
+    const curve = energyCableCurve(topology);
+    return { path: curve, geometry: new THREE.TubeGeometry(curve, 48, 0.025, 8, false) };
   }, [topology]);
-
-  const geometry = useMemo(() => new THREE.TubeGeometry(path, 48, 0.025, 8, false), [path]);
   const bead = useRef<Group>(null);
 
   useFrame((_, dt) => {

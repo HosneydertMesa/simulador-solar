@@ -1,17 +1,32 @@
 import { describe, expect, it } from "vitest";
 import { invert } from "../inverter";
 import { moduleDcW } from "../pv";
-import { PANELS, INVERTERS } from "@/data/catalog";
+import { CATALOG, PANELS, INVERTERS, BATTERIES, DEFAULT_DERATE } from "@/data/catalog";
 import { chargeBattery, createBatteryState, dischargeBattery } from "../battery";
-import { BATTERIES } from "@/data/catalog";
 import { simulateYear } from "../simulate";
+import { evaluateEconomics } from "../economics";
+import { compareQuotes } from "../optimize";
 import { LOCATIONS } from "@/data/locations";
-import { DEFAULT_DERATE } from "@/data/catalog";
 import type { SystemConfig } from "../types";
 
 const panel = PANELS[0];
 const hybrid = INVERTERS.find((i) => i.id === "deye-sun-8k")!;
 const battery = BATTERIES[0];
+
+const rooftopOnGrid = (): SystemConfig => ({
+  topology: "ongrid",
+  location: LOCATIONS[1],
+  tiltDeg: 10,
+  azimuthDeg: 180,
+  panel,
+  panelCount: 10,
+  inverter: hybrid,
+  battery: null,
+  batteryCount: 0,
+  dailyLoadKwh: 12,
+  loadProfile: [],
+  derate: DEFAULT_DERATE,
+});
 
 describe("módulo FV", () => {
   it("en STC entrega aproximadamente Pmax", () => {
@@ -72,20 +87,7 @@ describe("batería", () => {
 });
 
 describe("simulación anual", () => {
-  const base = (): SystemConfig => ({
-    topology: "ongrid",
-    location: LOCATIONS[1],
-    tiltDeg: 10,
-    azimuthDeg: 180,
-    panel,
-    panelCount: 10,
-    inverter: hybrid,
-    battery: null,
-    batteryCount: 0,
-    dailyLoadKwh: 12,
-    loadProfile: [],
-    derate: DEFAULT_DERATE,
-  });
+  const base = rooftopOnGrid;
 
   it("en on-grid sin carga exporta casi toda la generación AC", () => {
     const r = simulateYear({ ...base(), dailyLoadKwh: 0 });
@@ -120,5 +122,84 @@ describe("simulación anual", () => {
     const r = simulateYear(base());
     expect(r.kwhInverterLoss).toBeGreaterThan(0);
     expect(r.kwhInverterLoss).toBeLessThan(r.kwhPvDc);
+  });
+});
+
+describe("economía COP", () => {
+  it("LCOE en COP es LCOE USD × TRM", () => {
+    const annual = simulateYear(rooftopOnGrid());
+    const e = evaluateEconomics(annual, {
+      panelUnitUsd: 100,
+      inverterUnitUsd: 500,
+      batteryUnitUsd: 0,
+      panelCount: 10,
+      inverterCount: 1,
+      batteryCount: 0,
+      shippingUsd: 50,
+      laborPerWpUsd: 0.1,
+      mountingPerWpUsd: 0.05,
+      bosPerWpUsd: 0.08,
+      arrayKw: 5.8,
+      tariffCopPerKwh: 850,
+      exportCopPerKwh: 180,
+      usdCop: 4100,
+      projectYears: 25,
+      discountRate: 0.08,
+      opexPctCapex: 0.012,
+      inverterReplaceYear: 12,
+      inverterReplaceUsd: 350,
+    });
+    expect(e.lcoeCopPerKwh).toBeCloseTo(e.lcoeUsdPerKwh * 4100, 6);
+    expect(e.capexCop).toBeCloseTo(e.capexUsd * 4100, 4);
+    expect(e.breakdownCop.panels).toBeGreaterThan(0);
+  });
+});
+
+describe("kit portátil", () => {
+  it("una estación + paneles plegables genera AC y no exporta a red", () => {
+    const fold = PANELS.find((p) => p.id === "ecoflow-220-fold")!;
+    const station = INVERTERS.find((i) => i.id === "ecoflow-delta2")!;
+    const pack = BATTERIES.find((b) => b.id === "ecoflow-delta2-pack")!;
+    const r = simulateYear({
+      topology: "portable",
+      location: LOCATIONS[1],
+      tiltDeg: 25,
+      azimuthDeg: 180,
+      panel: fold,
+      panelCount: 2,
+      inverter: station,
+      battery: pack,
+      batteryCount: 1,
+      dailyLoadKwh: 2.5,
+      loadProfile: [],
+      derate: DEFAULT_DERATE,
+    });
+    expect(r.kwhAc).toBeGreaterThan(50);
+    expect(r.kwhExport).toBe(0);
+    expect(r.kwhImport).toBe(0);
+  });
+
+  it("el comparador portátil no mezcla módulos de techo", () => {
+    const quotes = compareQuotes({
+      location: LOCATIONS[1],
+      topology: "portable",
+      tiltDeg: 25,
+      azimuthDeg: 180,
+      dailyLoadKwh: 2.5,
+      loadProfile: [],
+      autonomyDays: 1,
+      derate: DEFAULT_DERATE,
+      catalog: CATALOG,
+      tariffCopPerKwh: 850,
+      exportCopPerKwh: 0,
+      usdCop: 4100,
+      projectYears: 10,
+      discountRate: 0.08,
+    });
+    expect(quotes.length).toBeGreaterThan(0);
+    for (const q of quotes) {
+      expect(q.panel.formFactor).toBe("portable");
+      expect(q.inverter.kind).toBe("portable");
+    }
   });
 });

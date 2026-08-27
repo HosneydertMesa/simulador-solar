@@ -18,7 +18,17 @@ export function evaluateEconomics(
   const mounting = input.mountingPerWpUsd * wp;
   const bos = input.bosPerWpUsd * wp;
   const capexUsd = panels + inverter + batteries + labor + mounting + bos + input.shippingUsd;
-  const capexCop = capexUsd * input.usdCop;
+  const fx = input.usdCop;
+  const capexCop = capexUsd * fx;
+  const breakdownCop = {
+    panels: panels * fx,
+    inverter: inverter * fx,
+    batteries: batteries * fx,
+    shipping: input.shippingUsd * fx,
+    labor: labor * fx,
+    mounting: mounting * fx,
+    bos: bos * fx,
+  };
 
   const avoided = Math.max(annual.kwhLoad - annual.kwhImport - annual.kwhUnmet, 0);
   const annualSavingsCop = avoided * input.tariffCopPerKwh;
@@ -58,7 +68,9 @@ export function evaluateEconomics(
     annualExportCop,
     simplePaybackYears,
     lcoeUsdPerKwh,
+    lcoeCopPerKwh: lcoeUsdPerKwh * fx,
     npvCop: npv,
     irrApprox,
+    breakdownCop,
   };
 }
