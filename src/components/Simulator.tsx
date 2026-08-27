@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Battery,
   Box,
@@ -424,22 +424,30 @@ function HourlyChart({
 }) {
   const w = 320;
   const h = 90;
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    setReady(true);
+  }, []);
   const max = Math.max(0.2, ...hours.flatMap((x) => [x.pvDc, x.inverterAc, x.load]));
   const path = (key: "pvDc" | "inverterAc" | "load") =>
     hours
       .map((pt, i) => {
-        const x = (i / 23) * (w - 8) + 4;
-        const y = h - 8 - (pt[key] / max) * (h - 16);
-        return `${i === 0 ? "M" : "L"}${x},${y}`;
+        const x = ((i / 23) * (w - 8) + 4).toFixed(2);
+        const y = (h - 8 - (pt[key] / max) * (h - 16)).toFixed(2);
+        return `${i === 0 ? "M" : "L"}${x} ${y}`;
       })
       .join(" ");
   return (
     <div className="mt-3">
       <p className="mb-1 text-[11px] text-white/55">Perfil del mes (DC / AC / carga)</p>
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full rounded-lg bg-black/30">
-        <path d={path("pvDc")} fill="none" stroke="#f5a524" strokeWidth="1.6" />
-        <path d={path("inverterAc")} fill="none" stroke="#3ee0c2" strokeWidth="1.6" />
-        <path d={path("load")} fill="none" stroke="#8b9bb0" strokeWidth="1.2" />
+        {ready ? (
+          <>
+            <path d={path("pvDc")} fill="none" stroke="#f5a524" strokeWidth="1.6" />
+            <path d={path("inverterAc")} fill="none" stroke="#3ee0c2" strokeWidth="1.6" />
+            <path d={path("load")} fill="none" stroke="#8b9bb0" strokeWidth="1.2" />
+          </>
+        ) : null}
       </svg>
       <p className="mt-1 text-[10px] text-white/40">Ámbar DC · Cian AC · Gris carga</p>
     </div>
