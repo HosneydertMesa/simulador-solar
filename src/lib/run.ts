@@ -12,9 +12,11 @@ import {
 import { locationById } from "@/data/locations";
 import { evaluateEconomics } from "@/engine/economics";
 import { compareQuotes, quoteFromSelection } from "@/engine/optimize";
+import { usagesFor } from "@/data/appliances";
 import { arrayNameplateKw, suggestStringing } from "@/engine/pv";
 import { dcacRatio } from "@/engine/inverter";
-import { DEFAULT_LOAD, simulateYear } from "@/engine/simulate";
+import { simulateYear } from "@/engine/simulate";
+import { buildHourlyLoad, type HourlyLoad } from "@/engine/load";
 import type { AnnualResult, EconomicsResult, Quote, SystemConfig } from "@/engine/types";
 import { formFactorOf } from "@/engine/types";
 import type { SimulatorState } from "@/store/simulation";
@@ -38,6 +40,7 @@ export type RunResult = {
   dcac: number;
   warnings: string[];
   stockNotes: string[];
+  load: HourlyLoad;
 };
 
 export function runSimulation(state: SimulatorState): RunResult {
@@ -52,6 +55,9 @@ export function runSimulation(state: SimulatorState): RunResult {
     soiling: portable ? Math.max(state.soiling, 0.05) : state.soiling,
   };
   const supplier = supplierById(state.supplierId);
+  const usages = usagesFor(state.topology, state.homeAppliances, state.campingAppliances);
+  const extra = state.topology === "portable" ? state.campingExtraKwh : state.homeExtraKwh;
+  const load = buildHourlyLoad(usages, extra);
 
   const config: SystemConfig = {
     topology: state.topology,
@@ -63,8 +69,8 @@ export function runSimulation(state: SimulatorState): RunResult {
     inverter,
     battery,
     batteryCount,
-    dailyLoadKwh: state.dailyLoadKwh,
-    loadProfile: DEFAULT_LOAD,
+    dailyLoadKwh: load.dailyKwh,
+    loadProfile: load.profile,
     derate,
   };
 
@@ -132,14 +138,33 @@ export function runSimulation(state: SimulatorState): RunResult {
   if (!portable && formFactorOf(panel) === "portable") {
     warnings.push("Un panel plegable es para camping/campo. Para techo elige un módulo residencial.");
   }
+  if (load.peakKw > inverter.pAcKw) {
+    warnings.push(
+      `A las ${String(load.peakHour).padStart(2, "0")}:00 la casa pide ${load.peakKw.toFixed(1)} kW y el inversor/estación es de ${inverter.pAcKw} kW.`,
+    );
+  }
+  if (load.surgeKw > inverter.pAcKw) {
+    warnings.push(
+      `El arranque de un aparato (${load.surgeKw.toFixed(1)} kW) supera la potencia nominal: puede no encender aunque el kWh del día sí alcance.`,
+    );
+  }
+  const acCount = (usages.ac12?.count ?? 0) + (usages.ac18?.count ?? 0);
+  if (portable && acCount > 0 && inverter.pAcKw < 3.5) {
+    warnings.push(
+      "Un aire acondicionado casi nunca cabe en una estación de camping. Baja horas, quítalo, o mira un híbrido de techo.",
+    );
+  }
+  if (portable && (usages.shower?.count ?? 0) > 0) {
+    warnings.push("La ducha eléctrica pide ~3.5 kW. Un kit portátil no la sostiene.");
+  }
 
   const optimizeInput = {
     location,
     topology: state.topology,
     tiltDeg: state.tiltDeg,
     azimuthDeg: state.azimuthDeg,
-    dailyLoadKwh: state.dailyLoadKwh,
-    loadProfile: DEFAULT_LOAD,
+    dailyLoadKwh: load.dailyKwh,
+    loadProfile: load.profile,
     autonomyDays: state.autonomyDays,
     derate,
     catalog: CATALOG,
@@ -161,7 +186,7 @@ export function runSimulation(state: SimulatorState): RunResult {
     input: optimizeInput,
   });
 
-  return { config, annual, economics, quotes, selection, arrayKw, dcac, warnings, stockNotes };
+  return { config, annual, economics, quotes, selection, arrayKw, dcac, warnings, stockNotes, load };
 }
 
 export { PANELS, INVERTERS, BATTERIES, CATALOG };

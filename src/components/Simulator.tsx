@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { SceneCanvas } from "@/components/scene/SceneCanvas";
 import { SUPPLIERS, batteriesFor, invertersFor, panelsFor } from "@/data/catalog";
+import { APPLIANCES, usagesFor, type Appliance, type ApplianceUsage } from "@/data/appliances";
 import { LOCATIONS } from "@/data/locations";
 import {
   formatCop,
@@ -48,7 +49,6 @@ function applyTopology(t: Topology, state: SimulatorState) {
       batteryId: "ecoflow-delta2-pack",
       batteryCount: 1,
       supplierId: "ruta-solar",
-      dailyLoadKwh: 2.5,
       autonomyDays: 1,
       tiltDeg: 25,
       soiling: 0.06,
@@ -65,7 +65,6 @@ function applyTopology(t: Topology, state: SimulatorState) {
       batteryId: "pylontech-us3000c",
       batteryCount: 4,
       supplierId: "andes-solar",
-      dailyLoadKwh: 12,
       tiltDeg: 10,
       soiling: 0.03,
       projectYears: 25,
@@ -142,13 +141,47 @@ export function Simulator() {
           </Section>
 
           <Section title="Demanda" icon={<Zap size={14} />}>
+            <p className="hint">
+              Suma nevera, aire, luces… como en la casa o el campamento. El kWh/día y la curva
+              de las 24 h se arman solos.
+            </p>
+            <div className="grid grid-cols-2 gap-1">
+              <button
+                type="button"
+                className="tab"
+                onClick={() => state.applyLoadPreset("home")}
+              >
+                Casa típica
+              </button>
+              <button
+                type="button"
+                className="tab"
+                onClick={() => state.applyLoadPreset("camping")}
+              >
+                Campamento
+              </button>
+            </div>
+            <LoadSpark hoursKw={run.load.hoursKw} />
+            <p className="font-mono text-xs text-amber-100">
+              {run.load.dailyKwh.toFixed(1)} kWh/día · pico {run.load.peakKw.toFixed(1)} kW
+              {" · "}
+              {String(run.load.peakHour).padStart(2, "0")}:00
+            </p>
+            <ApplianceList
+              portable={portable}
+              usages={usagesFor(state.topology, state.homeAppliances, state.campingAppliances)}
+              items={run.load.items}
+              onChange={(id, patch) => state.setAppliance(id, patch)}
+            />
             <NumberField
-              label="Consumo diario kWh"
-              value={state.dailyLoadKwh}
-              min={1}
-              max={80}
+              label="Otros kWh/día"
+              value={portable ? state.campingExtraKwh : state.homeExtraKwh}
+              min={0}
+              max={30}
               step={0.5}
-              onChange={(dailyLoadKwh) => state.set({ dailyLoadKwh })}
+              onChange={(v) =>
+                portable ? state.set({ campingExtraKwh: v }) : state.set({ homeExtraKwh: v })
+              }
             />
             <NumberField
               label="Autonomía días"
@@ -173,7 +206,7 @@ export function Simulator() {
             </div>
             {portable && (
               <p className="hint">
-                Camping, finca o emergencia: paneles plegables + estación de batería. Sin obra de techo.
+                Prueba “Casa típica” aquí: verás por qué una estación no mueve nevera grande + aire.
               </p>
             )}
           </Section>
@@ -336,6 +369,18 @@ export function Simulator() {
             <div className="space-y-3">
               <Metric label="Producción AC anual" value={formatKwh(run.annual.kwhAc)} />
               <Metric label="Consumo anual" value={formatKwh(run.annual.kwhLoad)} />
+              <Metric
+                label="Consumo diario"
+                value={`${run.load.dailyKwh.toFixed(1)} kWh`}
+                hint={`pico ${run.load.peakKw.toFixed(1)} kW`}
+              />
+              {run.load.items.slice(0, 4).map((item) => (
+                <Metric
+                  key={item.id}
+                  label={item.count > 1 ? `${item.name} ×${item.count}` : item.name}
+                  value={`${item.dailyKwh.toFixed(1)} kWh/d`}
+                />
+              ))}
               {!portable && <Metric label="Importación red" value={formatKwh(run.annual.kwhImport)} />}
               {!portable && <Metric label="Excedentes" value={formatKwh(run.annual.kwhExport)} />}
               <Metric label="No cubierto" value={formatKwh(run.annual.kwhUnmet)} />
@@ -412,6 +457,135 @@ export function Simulator() {
           )}
         </aside>
       </div>
+    </div>
+  );
+}
+
+function LoadSpark({ hoursKw }: { hoursKw: number[] }) {
+  const max = Math.max(0.01, ...hoursKw);
+  return (
+    <div className="flex h-9 items-end gap-px rounded-md bg-black/30 px-1 py-1" title="Perfil de 24 h">
+      {hoursKw.map((v, i) => (
+        <div
+          key={i}
+          className="flex-1 rounded-sm bg-amber-300/75"
+          style={{ height: `${Math.max(8, (v / max) * 100)}%` }}
+          title={`${String(i).padStart(2, "0")}:00 · ${v.toFixed(2)} kW`}
+        />
+      ))}
+    </div>
+  );
+}
+
+const CATEGORY_ORDER_HOME: Appliance["category"][] = [
+  "climate",
+  "kitchen",
+  "living",
+  "laundry",
+  "camping",
+];
+const CATEGORY_ORDER_CAMP: Appliance["category"][] = [
+  "camping",
+  "climate",
+  "living",
+  "kitchen",
+  "laundry",
+];
+const CATEGORY_LABEL: Record<Appliance["category"], string> = {
+  climate: "Clima",
+  kitchen: "Cocina",
+  living: "Casa",
+  laundry: "Agua / ropa",
+  camping: "Camping",
+};
+
+function ApplianceList({
+  portable,
+  usages,
+  items,
+  onChange,
+}: {
+  portable: boolean;
+  usages: Record<string, ApplianceUsage>;
+  items: { id: string; dailyKwh: number }[];
+  onChange: (id: string, patch: Partial<ApplianceUsage>) => void;
+}) {
+  const kwhById = new Map(items.map((i) => [i.id, i.dailyKwh]));
+  const order = portable ? CATEGORY_ORDER_CAMP : CATEGORY_ORDER_HOME;
+  return (
+    <div className="space-y-2">
+      {order.map((cat) => {
+        const rows = APPLIANCES.filter((a) => a.category === cat);
+        return (
+          <div key={cat}>
+            <p className="mb-1 text-[10px] uppercase tracking-wider text-white/35">
+              {CATEGORY_LABEL[cat]}
+            </p>
+            <div className="space-y-1">
+              {rows.map((a) => {
+                const usage = usages[a.id] ?? { count: 0, hours: a.defaultHours };
+                const active = usage.count > 0;
+                const kwh = kwhById.get(a.id) ?? 0;
+                return (
+                  <div
+                    key={a.id}
+                    className={`rounded-lg border px-2 py-1.5 ${
+                      active ? "border-white/12 bg-white/4" : "border-white/6 bg-transparent opacity-70"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 text-sm" aria-hidden>
+                        {a.icon}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[12px] leading-tight">{a.name}</p>
+                        <p className="font-mono text-[10px] text-white/45">
+                          {active ? `${kwh.toFixed(1)} kWh/d · ${a.watts} W` : `${a.watts} W`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          className="tab px-2"
+                          onClick={() => onChange(a.id, { count: Math.max(0, usage.count - 1) })}
+                          aria-label={`Quitar ${a.name}`}
+                        >
+                          −
+                        </button>
+                        <span className="w-4 text-center font-mono text-xs">{usage.count}</span>
+                        <button
+                          type="button"
+                          className="tab px-2"
+                          onClick={() => onChange(a.id, { count: Math.min(6, usage.count + 1) })}
+                          aria-label={`Agregar ${a.name}`}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    {active && (
+                      <label className="mt-1 flex items-center justify-between gap-2 pl-7 text-[10px] text-white/45">
+                        Horas/día
+                        <input
+                          className="field w-16 py-0.5 text-right"
+                          type="number"
+                          min={0}
+                          max={24}
+                          step={0.25}
+                          value={usage.hours}
+                          onChange={(e) =>
+                            onChange(a.id, { hours: Math.min(24, Math.max(0, Number(e.target.value))) })
+                          }
+                        />
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

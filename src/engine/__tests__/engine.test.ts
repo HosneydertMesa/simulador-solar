@@ -6,6 +6,8 @@ import { chargeBattery, createBatteryState, dischargeBattery } from "../battery"
 import { simulateYear } from "../simulate";
 import { evaluateEconomics } from "../economics";
 import { compareQuotes } from "../optimize";
+import { buildHourlyLoad, dailyKwhOf } from "../load";
+import { applianceById } from "@/data/appliances";
 import { LOCATIONS } from "@/data/locations";
 import type { SystemConfig } from "../types";
 
@@ -122,6 +124,24 @@ describe("simulación anual", () => {
     const r = simulateYear(base());
     expect(r.kwhInverterLoss).toBeGreaterThan(0);
     expect(r.kwhInverterLoss).toBeLessThan(r.kwhPvDc);
+  });
+
+  it("el año sigue el kWh diario de nevera + aire", () => {
+    const fridge = applianceById("fridge");
+    const load = buildHourlyLoad(
+      {
+        fridge: { count: 1, hours: fridge.defaultHours },
+        ac12: { count: 1, hours: 6 },
+      },
+      0,
+    );
+    const r = simulateYear({
+      ...base(),
+      dailyLoadKwh: load.dailyKwh,
+      loadProfile: load.profile,
+    });
+    expect(load.dailyKwh).toBeGreaterThan(dailyKwhOf(fridge, { count: 1, hours: 24 }) + 4);
+    expect(r.kwhLoad).toBeCloseTo(load.dailyKwh * 365, 0);
   });
 });
 

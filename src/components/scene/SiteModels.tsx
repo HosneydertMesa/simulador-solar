@@ -22,6 +22,11 @@ export function SiteModels({ sunPosition, sunVisible }: Props) {
   const batteryCount = useSimulator((s) => s.batteryCount);
   const panel = panelById(useSimulator((s) => s.panelId));
   const hour = useSimulator((s) => s.hourPreview);
+  const acCount =
+    useSimulator((s) => (s.homeAppliances.ac12?.count ?? 0) + (s.homeAppliances.ac18?.count ?? 0));
+  const campingFridge = useSimulator(
+    (s) => (s.campingAppliances.campingFridge?.count ?? 0) + (s.campingAppliances.fridge?.count ?? 0),
+  );
 
   if (topology === "portable") {
     return (
@@ -35,6 +40,7 @@ export function SiteModels({ sunPosition, sunVisible }: Props) {
           glow={sunVisible}
           selected={selected}
           onSelect={(obj) => set({ selectedObject: obj })}
+          campingFridge={campingFridge}
         />
         <EnergyCables topology={topology} pulse={hour} />
         <SunMarker position={sunPosition} visible={sunVisible} />
@@ -50,6 +56,7 @@ export function SiteModels({ sunPosition, sunVisible }: Props) {
         tilt={tilt}
         selected={selected === "house"}
         onSelect={() => set({ selectedObject: "house" })}
+        showAc={acCount > 0}
       />
       <RoofArray
         tilt={tilt}
@@ -89,6 +96,7 @@ function PortableKit({
   glow,
   selected,
   onSelect,
+  campingFridge,
 }: {
   tilt: number;
   count: number;
@@ -98,6 +106,7 @@ function PortableKit({
   glow: boolean;
   selected: "panels" | "inverter" | "battery" | "house" | null;
   onSelect: (obj: "panels" | "inverter" | "battery") => void;
+  campingFridge: number;
 }) {
   const pitch = (Math.min(Math.max(tilt, 10), 50) * Math.PI) / 180;
   const visual = Math.min(count, 6);
@@ -159,6 +168,23 @@ function PortableKit({
           </mesh>
         </group>
       ))}
+      {campingFridge > 0 && (
+        <group position={[-1.55, 0.28, 2.35]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.55, 0.5, 0.42]} />
+            <meshStandardMaterial color="#1a3a48" metalness={0.35} roughness={0.4} />
+          </mesh>
+          <mesh position={[0, 0.18, 0.22]}>
+            <boxGeometry args={[0.18, 0.06, 0.02]} />
+            <meshStandardMaterial color="#3ee0c2" emissive="#3ee0c2" emissiveIntensity={0.45} />
+          </mesh>
+          <Html position={[0, 0.55, 0]} center>
+            <div className="rounded bg-black/70 px-1.5 py-0.5 text-[9px] tracking-wide text-cyan-100">
+              NEVERA 12V
+            </div>
+          </Html>
+        </group>
+      )}
       <Html position={[1.6, 0.95, 1.4]} center>
         <div className="rounded bg-black/70 px-1.5 py-0.5 text-[9px] tracking-wide text-cyan-100">
           ESTACIÓN
@@ -177,10 +203,12 @@ function House({
   tilt,
   selected,
   onSelect,
+  showAc,
 }: {
   tilt: number;
   selected: boolean;
   onSelect: () => void;
+  showAc: boolean;
 }) {
   const pitch = (Math.min(Math.max(tilt, 8), 35) * Math.PI) / 180;
   const half = 3.35;
@@ -205,6 +233,23 @@ function House({
           <meshStandardMaterial color="#7ec8e3" roughness={0.15} metalness={0.3} />
         </mesh>
       ))}
+      {showAc && (
+        <group position={[4.18, 2.05, 1.15]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.28, 0.55, 0.85]} />
+            <meshStandardMaterial color="#cfd6dc" metalness={0.5} roughness={0.35} />
+          </mesh>
+          <mesh position={[0.16, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.18, 0.18, 0.08, 16]} />
+            <meshStandardMaterial color="#9aa4ad" metalness={0.6} roughness={0.3} />
+          </mesh>
+          <Html position={[0.2, 0.5, 0]} center>
+            <div className="rounded bg-black/70 px-1.5 py-0.5 text-[9px] tracking-wide text-cyan-100">
+              AIRE
+            </div>
+          </Html>
+        </group>
+      )}
       <mesh
         position={[0, 2.9 + rise / 2, -half / 2]}
         rotation={[pitch, 0, 0]}
