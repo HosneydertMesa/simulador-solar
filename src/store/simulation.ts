@@ -34,6 +34,7 @@ export type SimulatorState = {
   campingAppliances: Record<string, ApplianceUsage>;
   homeExtraKwh: number;
   campingExtraKwh: number;
+  viewMode: "simple" | "technical";
   set: (patch: Partial<SimulatorState>) => void;
   setAppliance: (id: string, patch: Partial<ApplianceUsage>) => void;
   applyLoadPreset: (preset: "home" | "camping") => void;
@@ -64,6 +65,7 @@ export const useSimulator = create<SimulatorState>((set) => ({
   campingAppliances: { ...CAMPING_PRESET },
   homeExtraKwh: 1.5,
   campingExtraKwh: 0.3,
+  viewMode: "simple",
   set: (patch) => set(patch),
   setAppliance: (id, patch) =>
     set((state) => {

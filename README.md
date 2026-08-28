@@ -27,6 +27,8 @@ El cálculo **no vive dentro del 3D**: está en `src/engine/` (puro TypeScript, 
 
 Los precios del catálogo son **de lista ilustrativos** (USD → COP) para comparar arquitectura de costos, no una cotización comercial.
 
+Hay dos vistas: **Para mí** (veredicto en español, aparatos y gráficas del día) y **Técnico** (equipos, LCOE, pérdidas y comparador).
+
 ## Cómo correrlo
 
 ```bash

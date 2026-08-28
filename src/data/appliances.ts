@@ -32,7 +32,7 @@ export const APPLIANCES: Appliance[] = [
   {
     id: "fridge",
     name: "Nevera",
-    hint: "Compresor a ciclos. ~1.2 kWh/día en una nevera inverter típica.",
+    hint: "Compresor a ciclos. Unas 1.2 kWh al día en una nevera típica.",
     icon: "🧊",
     category: "kitchen",
     watts: 150,
@@ -46,8 +46,8 @@ export const APPLIANCES: Appliance[] = [
   },
   {
     id: "ac12",
-    name: "Aire 12.000 BTU",
-    hint: "El que más mueve la cuenta. Prueba 4–8 h/día.",
+    name: "Aire",
+    hint: "12.000 BTU, el que más mueve la cuenta. Prueba 4–8 h/día.",
     icon: "❄️",
     category: "climate",
     watts: 1100,
@@ -61,8 +61,8 @@ export const APPLIANCES: Appliance[] = [
   },
   {
     id: "ac18",
-    name: "Aire 18.000 BTU",
-    hint: "Sala o espacio grande. Pico alto al arrancar.",
+    name: "Aire grande",
+    hint: "18.000 BTU, sala o espacio grande. Pico alto al arrancar.",
     icon: "🌀",
     category: "climate",
     watts: 1700,
