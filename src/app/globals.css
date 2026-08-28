@@ -64,6 +64,14 @@ input[type="range"] {
   width: 9rem;
 }
 
+details summary {
+  list-style: none;
+}
+details summary::-webkit-details-marker {
+  display: none;
+}
+
 select option {
   background: #0c121a;
 }
+
